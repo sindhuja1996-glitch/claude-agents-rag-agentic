@@ -23,7 +23,7 @@ const StreamingMessage = memo(function StreamingMessage({ content, agent }: Stre
     if (preRef.current) {
       preRef.current.textContent = content;
       // Keep scroll glued to bottom
-      preRef.current.scrollIntoView({ block: 'end', behavior: 'nearest' });
+      preRef.current.scrollIntoView({ block: 'end', behavior: 'smooth' });
     }
   }, [content]);
 

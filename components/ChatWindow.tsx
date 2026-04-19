@@ -269,18 +269,27 @@ function LiveStreamBubble({
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const onToken = (e: Event) => {
-      const text = (e as CustomEvent<string>).detail;
-      if (preRef.current) preRef.current.textContent = text;
-      endRef.current?.scrollIntoView({ block: 'end', behavior: 'nearest' });
-    };
-    window.addEventListener('stream-token', onToken);
-    // Paint whatever is already buffered immediately
-    if (preRef.current && bufferRef.current) {
-      preRef.current.textContent = bufferRef.current;
+  const onToken = (e: Event) => {
+    const text = (e as CustomEvent<string>).detail;
+
+    if (preRef.current) {
+      preRef.current.textContent = text;
     }
-    return () => window.removeEventListener('stream-token', onToken);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    endRef.current?.scrollIntoView({
+      block: 'end',
+      behavior: 'smooth', // ✅ FIXED
+    });
+  };
+
+  window.addEventListener('stream-token', onToken);
+
+  if (preRef.current && bufferRef.current) {
+    preRef.current.textContent = bufferRef.current;
+  }
+
+  return () => window.removeEventListener('stream-token', onToken);
+}, []);
 
   return (
     <div style={{ display: 'flex', gap: 12, padding: '10px 24px' }}>
