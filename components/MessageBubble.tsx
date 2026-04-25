@@ -5,19 +5,15 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/cjs/styles/prism';
-import { Copy, Check, User, Cpu } from 'lucide-react';
+import { Copy, Check, User } from 'lucide-react';
 import { Agent } from '@/lib/agents';
-import { clsx } from 'clsx';
-
-interface Message {
-  role: 'user' | 'assistant';
-  content: string;
-}
+import { ChatMessage } from '@/lib/image-chat';
 
 interface MessageBubbleProps {
-  message: Message;
+  message: ChatMessage;
   agent: Agent;
   isStreaming?: boolean;
+  onQuickReply?: (value: string) => void;
 }
 
 function CopyButton({ text }: { text: string }) {
@@ -93,8 +89,9 @@ function CodeBlock({ inline, className, children, ...props }: CodeBlockProps) {
   );
 }
 
-export default function MessageBubble({ message, agent, isStreaming }: MessageBubbleProps) {
+export default function MessageBubble({ message, agent, isStreaming, onQuickReply }: MessageBubbleProps) {
   const isUser = message.role === 'user';
+  const hasVisuals = Boolean(message.attachments?.length || message.images?.length);
 
   if (isUser) {
     return (
@@ -112,6 +109,24 @@ export default function MessageBubble({ message, agent, isStreaming }: MessageBu
           }}
         >
           {message.content}
+          {message.attachments?.length ? (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: message.content ? 12 : 0 }}>
+              {message.attachments.map((attachment, index) => (
+                <img
+                  key={`${attachment.name}-${index}`}
+                  src={attachment.dataUrl}
+                  alt={attachment.name}
+                  style={{
+                    width: 120,
+                    height: 120,
+                    objectFit: 'cover',
+                    borderRadius: 10,
+                    border: '1px solid rgba(0,212,255,0.2)',
+                  }}
+                />
+              ))}
+            </div>
+          ) : null}
         </div>
         <div
           className="flex-shrink-0 flex items-center justify-center rounded-full mt-1"
@@ -165,6 +180,81 @@ export default function MessageBubble({ message, agent, isStreaming }: MessageBu
           >
             {message.content}
           </ReactMarkdown>
+          {message.images?.length ? (
+            <div style={{ display: 'grid', gap: 10, marginTop: message.content ? 14 : 0 }}>
+              {message.images.map((image, index) => (
+                <a
+                  key={`${image.model}-${index}`}
+                  href={image.dataUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    display: 'block',
+                    textDecoration: 'none',
+                  }}
+                >
+                  <img
+                    src={image.dataUrl}
+                    alt={`Generated visual ${index + 1}`}
+                    style={{
+                      width: '100%',
+                      maxWidth: 520,
+                      borderRadius: 12,
+                      border: `1px solid ${agent.color}33`,
+                    }}
+                  />
+                </a>
+              ))}
+            </div>
+          ) : null}
+          {(message.meta?.model || hasVisuals) && !isStreaming ? (
+            <div
+              style={{
+                display: 'flex',
+                gap: 8,
+                flexWrap: 'wrap',
+                marginTop: 12,
+                color: '#6B7280',
+                fontFamily: 'JetBrains Mono, monospace',
+                fontSize: '0.62rem',
+              }}
+            >
+              {message.meta?.model ? (
+                <span
+                  style={{
+                    padding: '3px 8px',
+                    borderRadius: 999,
+                    border: '1px solid #1A2332',
+                    background: 'rgba(255,255,255,0.02)',
+                  }}
+                >
+                  {message.meta.fallbackUsed ? `Fallback: ${message.meta.model}` : message.meta.model}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+          {message.meta?.quickReplies?.length ? (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
+              {message.meta.quickReplies.map(reply => (
+                <button
+                  key={reply}
+                  onClick={() => onQuickReply?.(reply)}
+                  style={{
+                    padding: '8px 10px',
+                    borderRadius: 999,
+                    border: `1px solid ${agent.color}33`,
+                    background: agent.accentColor,
+                    color: agent.color,
+                    fontFamily: 'JetBrains Mono, monospace',
+                    fontSize: '0.66rem',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {reply}
+                </button>
+              ))}
+            </div>
+          ) : null}
           {isStreaming && <span className="cursor-blink" />}
         </div>
       </div>

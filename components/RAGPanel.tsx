@@ -7,6 +7,7 @@ import { RAGDocument, extractText, chunkText, genId } from '@/lib/rag';
 interface RAGPanelProps {
   documents: RAGDocument[];
   onDocumentsChange: (docs: RAGDocument[]) => void;
+  fullWidth?: boolean;
 }
 
 type UploadStatus = 'idle' | 'processing' | 'done' | 'error';
@@ -19,7 +20,7 @@ interface FileState {
 
 const ACCEPTED = '.txt,.md,.mdx,.ts,.tsx,.js,.jsx,.py,.java,.go,.rs,.cpp,.c,.cs,.rb,.php,.swift,.kt,.json,.yaml,.yml,.toml,.sh,.sql,.html,.css,.pdf,.csv';
 
-export default function RAGPanel({ documents, onDocumentsChange }: RAGPanelProps) {
+export default function RAGPanel({ documents, onDocumentsChange, fullWidth = false }: RAGPanelProps) {
   const [fileStates, setFileStates] = useState<FileState[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -112,10 +113,10 @@ export default function RAGPanel({ documents, onDocumentsChange }: RAGPanelProps
   return (
     <div
       style={{
-        width: 260,
-        minWidth: 260,
+        width: fullWidth ? '100%' : 260,
+        minWidth: fullWidth ? 0 : 260,
         background: '#080C10',
-        borderLeft: '1px solid #1A2332',
+        borderLeft: fullWidth ? 'none' : '1px solid #1A2332',
         display: 'flex',
         flexDirection: 'column',
         height: '100%',

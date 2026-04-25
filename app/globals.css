@@ -308,3 +308,20 @@ body::before {
   z-index: 9999;
   opacity: 0.4;
 }
+
+@media (max-width: 900px) {
+  .markdown-content {
+    font-size: 0.85rem;
+    line-height: 1.65;
+  }
+
+  .markdown-content table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  .agent-card:hover {
+    transform: none;
+  }
+}
