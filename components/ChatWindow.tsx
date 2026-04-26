@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, Trash2, Database, ImagePlus, X, Mic, MicOff } from 'lucide-react';
 import { Agent, AgentId } from '@/lib/agents';
 import { RAGDocument, retrieveChunks, buildRAGContext } from '@/lib/rag';
@@ -15,6 +15,33 @@ interface ChatWindowProps {
   initialMessages?: ChatMessage[];
   onMessagesChange?: (messages: ChatMessage[]) => void;
 }
+
+interface BrowserSpeechRecognitionAlternative {
+  transcript: string;
+}
+
+interface BrowserSpeechRecognitionResultLike {
+  [index: number]: BrowserSpeechRecognitionAlternative | undefined;
+  length: number;
+}
+
+interface BrowserSpeechRecognitionEventLike extends Event {
+  results: ArrayLike<BrowserSpeechRecognitionResultLike>;
+}
+
+interface BrowserSpeechRecognitionLike extends EventTarget {
+  lang: string;
+  interimResults: boolean;
+  continuous: boolean;
+  onstart: (() => void) | null;
+  onend: (() => void) | null;
+  onerror: ((event: Event) => void) | null;
+  onresult: ((event: BrowserSpeechRecognitionEventLike) => void) | null;
+  start: () => void;
+  stop: () => void;
+}
+
+type BrowserSpeechRecognitionCtor = new () => BrowserSpeechRecognitionLike;
 
 export default function ChatWindow({
   agent,
@@ -34,7 +61,7 @@ export default function ChatWindow({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const recognitionRef = useRef<BrowserSpeechRecognitionLike | null>(null);
   const [pendingImages, setPendingImages] = useState<ImageAttachment[]>([]);
   const isImageAgent = agent.id === 'nano-banana-studio';
   const isRealtimeIntel = agent.id === 'realtime-intel';
@@ -48,12 +75,12 @@ export default function ChatWindow({
   const [voiceLang, setVoiceLang] = useState<'en-IN' | 'hi-IN' | 'te-IN'>('en-IN');
   const [isListening, setIsListening] = useState(false);
   const [responseLanguageHint, setResponseLanguageHint] = useState<string | null>(null);
-  const isVoiceSupported = typeof window !== 'undefined' && Boolean((window as Window & typeof globalThis & {
-    SpeechRecognition?: typeof SpeechRecognition;
-    webkitSpeechRecognition?: typeof SpeechRecognition;
-  }).SpeechRecognition || (window as Window & typeof globalThis & {
-    SpeechRecognition?: typeof SpeechRecognition;
-    webkitSpeechRecognition?: typeof SpeechRecognition;
+  const isVoiceSupported = typeof window !== 'undefined' && Boolean((window as Window & {
+    SpeechRecognition?: BrowserSpeechRecognitionCtor;
+    webkitSpeechRecognition?: BrowserSpeechRecognitionCtor;
+  }).SpeechRecognition || (window as Window & {
+    SpeechRecognition?: BrowserSpeechRecognitionCtor;
+    webkitSpeechRecognition?: BrowserSpeechRecognitionCtor;
   }).webkitSpeechRecognition);
 
   const scrollToBottom = useCallback(() => {
@@ -64,6 +91,8 @@ export default function ChatWindow({
   useEffect(() => { onMessageCountChange(messages.length); }, [messages.length, onMessageCountChange]);
   useEffect(() => { onMessagesChange?.(messages); }, [messages, onMessagesChange]);
   useEffect(() => {
+    abortRef.current?.abort();
+    recognitionRef.current?.stop();
     setMessages(initialMessages);
     setExamIntake(null);
     setInput('');
@@ -72,7 +101,14 @@ export default function ChatWindow({
     setIsLoading(false);
     streamBufferRef.current = '';
     setLoadingStatus('Thinking...');
+    setIsListening(false);
+    setResponseLanguageHint(null);
   }, [initialMessages]);
+
+  useEffect(() => () => {
+    abortRef.current?.abort();
+    recognitionRef.current?.stop();
+  }, []);
 
   useEffect(() => {
     const ta = textareaRef.current;
@@ -233,6 +269,7 @@ export default function ChatWindow({
       const reader = res.body!.getReader();
       const decoder = new TextDecoder();
       let firstChunkReceived = false;
+      let sseBuffer = '';
 
       while (true) {
         const { done, value } = await reader.read();
@@ -241,8 +278,10 @@ export default function ChatWindow({
           setLoadingStatus('Generating response...');
           firstChunkReceived = true;
         }
-        const raw = decoder.decode(value, { stream: true });
-        for (const line of raw.split('\n')) {
+        sseBuffer += decoder.decode(value, { stream: true });
+        const lines = sseBuffer.split('\n');
+        sseBuffer = lines.pop() ?? '';
+        for (const line of lines) {
           if (!line.startsWith('data: ')) continue;
           const data = line.slice(6);
           if (data === '[DONE]') continue;
@@ -267,6 +306,7 @@ export default function ChatWindow({
       setError(err instanceof Error ? err.message : 'Something went wrong');
       setIsLoading(false);
     } finally {
+      abortRef.current = null;
       setLoadingStatus('Thinking...');
     }
   }, [agent.id, isImageAgent, isRealtimeIntel]);
@@ -324,12 +364,12 @@ export default function ChatWindow({
 
   const startVoiceInput = useCallback(() => {
     if (!isVoiceSupported || isListening) return;
-    const SpeechRecognitionCtor = (window as Window & typeof globalThis & {
-      SpeechRecognition?: typeof SpeechRecognition;
-      webkitSpeechRecognition?: typeof SpeechRecognition;
-    }).SpeechRecognition || (window as Window & typeof globalThis & {
-      SpeechRecognition?: typeof SpeechRecognition;
-      webkitSpeechRecognition?: typeof SpeechRecognition;
+    const SpeechRecognitionCtor = (window as Window & {
+      SpeechRecognition?: BrowserSpeechRecognitionCtor;
+      webkitSpeechRecognition?: BrowserSpeechRecognitionCtor;
+    }).SpeechRecognition || (window as Window & {
+      SpeechRecognition?: BrowserSpeechRecognitionCtor;
+      webkitSpeechRecognition?: BrowserSpeechRecognitionCtor;
     }).webkitSpeechRecognition;
 
     if (!SpeechRecognitionCtor) return;
@@ -342,9 +382,9 @@ export default function ChatWindow({
     recognition.onstart = () => setIsListening(true);
     recognition.onend = () => setIsListening(false);
     recognition.onerror = () => setIsListening(false);
-    recognition.onresult = event => {
+    recognition.onresult = (event: BrowserSpeechRecognitionEventLike) => {
       const transcript = Array.from(event.results)
-        .map(result => result[0]?.transcript ?? '')
+        .map(result => result?.[0]?.transcript ?? '')
         .join(' ')
         .trim();
       setInput(transcript);
@@ -366,11 +406,12 @@ export default function ChatWindow({
     const trimmed = userContent.trim();
     if ((!trimmed && pendingImages.length === 0) || isLoading) return;
     setError(null);
+    const currentPendingImages = pendingImages;
 
     const rawMsg: ChatMessage = {
       role: 'user',
       content: trimmed,
-      attachments: pendingImages.length ? pendingImages : undefined,
+      attachments: currentPendingImages.length ? currentPendingImages : undefined,
     };
 
     setMessages(prev => [...prev, rawMsg]);
@@ -386,7 +427,7 @@ export default function ChatWindow({
           ? `${trimmed}\n\nPlease respond in ${responseLanguageHint}.`
           : trimmed
       ),
-      attachments: pendingImages.length ? pendingImages : undefined,
+      attachments: currentPendingImages.length ? currentPendingImages : undefined,
     };
     const nextMessages = [...messages, rawMsg];
     const apiHistory = [...messages, augmentedMsg];
@@ -402,7 +443,6 @@ export default function ChatWindow({
         },
       };
       await continueExamIntake(nextMessages, nextIntake);
-      setIsLoading(false);
       return;
     }
 
@@ -448,11 +488,17 @@ export default function ChatWindow({
 
   const clearChat = useCallback(() => {
     abortRef.current?.abort();
+    recognitionRef.current?.stop();
     setMessages([]);
     setIsLoading(false);
     streamBufferRef.current = '';
     setError(null);
     setPendingImages([]);
+    setInput('');
+    setExamIntake(null);
+    setLoadingStatus('Thinking...');
+    setIsListening(false);
+    setResponseLanguageHint(null);
   }, []);
 
   const ragActive = ragDocuments.length > 0;
@@ -696,7 +742,7 @@ export default function ChatWindow({
           textAlign: 'center', marginTop: 5,
           fontFamily: 'JetBrains Mono, monospace', fontSize: '0.58rem', color: '#2D3748',
         }}>
-          {isImageAgent ? 'attach image or type prompt · enter to send' : '↵ send · ⇧↵ newline · AI-generated'}
+          {isImageAgent ? 'attach image or type prompt | enter to send' : 'enter sends | shift+enter adds a newline | AI-generated'}
         </div>
       </div>
     </div>

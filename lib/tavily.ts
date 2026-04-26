@@ -137,7 +137,8 @@ export function buildRecentWebContext(context: TavilyContext, today: string): st
 
   if (context.results.length > 0) {
     lines.push('', 'Sources:');
-    for (const [index, result] of context.results.entries()) {
+    for (let index = 0; index < context.results.length; index += 1) {
+      const result = context.results[index];
       lines.push(
         `${index + 1}. ${result.title ?? 'Untitled source'}`,
         `URL: ${result.url}`,

@@ -124,7 +124,8 @@ export async function generateImageResponse(messages: ChatMessage[]): Promise<{
 
   const attempts: ImageAttempt[] = [];
 
-  for (const [index, model] of IMAGE_MODELS.entries()) {
+  for (let index = 0; index < IMAGE_MODELS.length; index += 1) {
+    const model = IMAGE_MODELS[index];
     try {
       const response = await client.models.generateContent({
         model,
