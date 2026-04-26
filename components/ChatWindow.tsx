@@ -16,6 +16,8 @@ interface ChatWindowProps {
   onMessagesChange?: (messages: ChatMessage[]) => void;
 }
 
+const EMPTY_MESSAGES: ChatMessage[] = [];
+
 interface BrowserSpeechRecognitionAlternative {
   transcript: string;
 }
@@ -47,10 +49,11 @@ export default function ChatWindow({
   agent,
   onMessageCountChange,
   ragDocuments = [],
-  initialMessages = [],
+  initialMessages,
   onMessagesChange,
 }: ChatWindowProps) {
-  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
+  const stableInitialMessages = initialMessages ?? EMPTY_MESSAGES;
+  const [messages, setMessages] = useState<ChatMessage[]>(stableInitialMessages);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [streamVersion, setStreamVersion] = useState(0);
@@ -90,21 +93,6 @@ export default function ChatWindow({
   useEffect(() => { scrollToBottom(); }, [messages, scrollToBottom, isLoading]);
   useEffect(() => { onMessageCountChange(messages.length); }, [messages.length, onMessageCountChange]);
   useEffect(() => { onMessagesChange?.(messages); }, [messages, onMessagesChange]);
-  useEffect(() => {
-    abortRef.current?.abort();
-    recognitionRef.current?.stop();
-    setMessages(initialMessages);
-    setExamIntake(null);
-    setInput('');
-    setPendingImages([]);
-    setError(null);
-    setIsLoading(false);
-    streamBufferRef.current = '';
-    setLoadingStatus('Thinking...');
-    setIsListening(false);
-    setResponseLanguageHint(null);
-  }, [initialMessages]);
-
   useEffect(() => () => {
     abortRef.current?.abort();
     recognitionRef.current?.stop();
